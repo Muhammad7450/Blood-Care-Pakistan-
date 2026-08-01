@@ -1,0 +1,6 @@
+{
+  "name": "BloodCare Pakistan",
+  "description": "Blood Donation & Emergency Network connecting donors, patients, hospitals, and blood banks across Pakistan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
