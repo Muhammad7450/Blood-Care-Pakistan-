@@ -40,6 +40,7 @@ class BloodCareRepository(
 
     suspend fun getRequestById(id: Int) = requestDao.getRequestById(id)
     suspend fun addBloodRequest(request: BloodRequestEntity) = requestDao.insertRequest(request)
+    suspend fun updateRequest(request: BloodRequestEntity) = requestDao.updateRequest(request)
     suspend fun updateRequestStatus(id: Int, status: String) = requestDao.updateRequestStatus(id, status)
     suspend fun deleteRequest(id: Int) = requestDao.deleteRequest(id)
 

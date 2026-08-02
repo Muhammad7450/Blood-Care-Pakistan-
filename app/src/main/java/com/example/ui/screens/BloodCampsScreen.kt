@@ -71,7 +71,38 @@ fun BloodCampsScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        items(camps) { camp ->
+        if (camps.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.Event, contentDescription = null, tint = CrimsonRedPrimary, modifier = Modifier.size(40.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = LanguageState.getText("No Active Blood Drives", "کوئی کیمپ دستیاب نہیں"),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = LanguageState.getText("New upcoming blood donation drives will be displayed here.", "نئے کیمپس یہاں نظر آئیں گے۔"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
+            items(camps) { camp ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -139,4 +170,5 @@ fun BloodCampsScreen(
             }
         }
     }
+}
 }

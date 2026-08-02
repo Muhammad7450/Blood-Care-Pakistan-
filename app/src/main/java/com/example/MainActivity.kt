@@ -198,12 +198,22 @@ fun BloodCareApp() {
             composable(Screen.Profile.route) {
                 ProfileScreen(
                     viewModel = viewModel,
-                    onRoleSelectClick = { navController.navigate(Screen.RoleSelection.route) }
+                    onRoleSelectClick = { navController.navigate(Screen.RoleSelection.route) },
+                    onLogoutClick = {
+                        navController.navigate(Screen.LoginRegister.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 )
             }
 
             composable(Screen.Notifications.route) {
-                NotificationsScreen()
+                NotificationsScreen(
+                    viewModel = viewModel,
+                    onRequestClick = { reqId ->
+                        navController.navigate(Screen.EmergencyRequestDetails.createRoute(reqId))
+                    }
+                )
             }
 
             composable(Screen.AdminDashboard.route) {

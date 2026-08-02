@@ -36,10 +36,18 @@ data class BloodRequestEntity(
     val requiredDateTime: String,
     val contactPhone: String,
     val notes: String,
-    val status: String = "Pending", // Pending, Matched, Fulfilled, Cancelled
+    val status: String = "Pending", // Pending, Matched, Accepted, Fulfilled, Cancelled
     val createdAt: Long = System.currentTimeMillis(),
     val isThalassemia: Boolean = false,
-    val requesterRole: String = "Patient" // Patient, Hospital
+    val requesterRole: String = "Patient", // Patient, Hospital
+    val acceptedDonorId: Int? = null,
+    val acceptedDonorName: String? = null,
+    val acceptedDonorPhone: String? = null,
+    val acceptedDonorLocation: String? = null,
+    val acceptedDonorDistanceKm: Double? = null,
+    val acceptedAt: String? = null,
+    val latitude: Double = 31.5204,
+    val longitude: Double = 74.3587
 )
 
 @Entity(tableName = "hospitals")

@@ -95,7 +95,38 @@ fun ThalassemiaSupportScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        items(thalassemiaRequests) { req ->
+        if (thalassemiaRequests.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.Healing, contentDescription = null, tint = CrimsonRedPrimary, modifier = Modifier.size(40.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = LanguageState.getText("No Thalassemia Requests Active", "تھیلیسیمیا کی کوئی درخواست موجود نہیں"),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = LanguageState.getText("All recurring blood requests submitted for Thalassemia patients will appear here.", "تمام درخواستیں یہاں ظاہر ہوں گی۔"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
+            items(thalassemiaRequests) { req ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -149,4 +180,5 @@ fun ThalassemiaSupportScreen(
             }
         }
     }
+}
 }

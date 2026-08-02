@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,7 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.CrimsonRedPrimary
 import com.example.ui.theme.CriticalRed
+import com.example.ui.theme.EditorialSlateBorder
 import com.example.ui.theme.SoftRedContainer
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.WarningOrange
 import com.example.ui.util.LanguageState
 import com.example.ui.viewmodel.BloodCareViewModel
@@ -74,7 +78,7 @@ fun CreateBloodRequestScreen(
     var isThalassemia by remember { mutableStateOf(false) }
 
     val bloodGroups = listOf("O-", "O+", "A+", "A-", "B+", "B-", "AB+", "AB-")
-    val cities = listOf("Lahore", "Karachi", "Islamabad", "Rawalpindi", "Peshawar", "Multan", "Faisalabad", "Quetta")
+    val cities = com.example.ui.util.PakistanCities.ALL_CITIES
     val emergencyLevels = listOf("Critical", "Urgent", "Normal")
 
     Column(
@@ -113,6 +117,17 @@ fun CreateBloodRequestScreen(
                     label = { Text(LanguageState.getText("Patient Name", "مریض کا نام")) },
                     leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = CrimsonRedPrimary) },
                     singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = CrimsonRedPrimary,
+                        unfocusedBorderColor = EditorialSlateBorder,
+                        focusedLabelColor = CrimsonRedPrimary,
+                        unfocusedLabelColor = TextSecondary,
+                        cursorColor = CrimsonRedPrimary
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("request_patient_name_input")
@@ -195,6 +210,17 @@ fun CreateBloodRequestScreen(
                     label = { Text(LanguageState.getText("Hospital Name", "ہسپتال کا نام")) },
                     leadingIcon = { Icon(Icons.Default.LocalHospital, contentDescription = null, tint = CrimsonRedPrimary) },
                     singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = CrimsonRedPrimary,
+                        unfocusedBorderColor = EditorialSlateBorder,
+                        focusedLabelColor = CrimsonRedPrimary,
+                        unfocusedLabelColor = TextSecondary,
+                        cursorColor = CrimsonRedPrimary
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("hospital_name_input")
@@ -289,7 +315,18 @@ fun CreateBloodRequestScreen(
                     value = notes,
                     onValueChange = { notes = it },
                     label = { Text(LanguageState.getText("Additional Notes / Ward / Doctor Name", "اضافی تفصیلات / وارڈ کا نام")) },
-                    leadingIcon = { Icon(Icons.Default.Note, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Note, contentDescription = null, tint = CrimsonRedPrimary) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = CrimsonRedPrimary,
+                        unfocusedBorderColor = EditorialSlateBorder,
+                        focusedLabelColor = CrimsonRedPrimary,
+                        unfocusedLabelColor = TextSecondary,
+                        cursorColor = CrimsonRedPrimary
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(100.dp)

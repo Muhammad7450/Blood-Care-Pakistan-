@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -152,6 +153,15 @@ fun AiChatbotScreen() {
                 value = inputQuery,
                 onValueChange = { inputQuery = it },
                 placeholder = { Text(LanguageState.getText("Ask AI about blood compatibility...", "بلڈ کے متعلق سوال پوچھیں...")) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = com.example.ui.theme.TextPrimary,
+                    unfocusedTextColor = com.example.ui.theme.TextPrimary,
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedBorderColor = CrimsonRedPrimary,
+                    unfocusedBorderColor = com.example.ui.theme.EditorialSlateBorder,
+                    cursorColor = CrimsonRedPrimary
+                ),
                 modifier = Modifier
                     .weight(1f)
                     .testTag("ai_chat_input"),

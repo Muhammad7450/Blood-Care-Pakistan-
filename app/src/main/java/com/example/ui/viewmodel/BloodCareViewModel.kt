@@ -9,13 +9,19 @@ import com.example.data.model.BloodRequestEntity
 import com.example.data.model.DonationRecordEntity
 import com.example.data.model.DonorEntity
 import com.example.data.model.HospitalEntity
+import com.example.data.remote.FirestoreService
 import com.example.data.repository.BloodCareRepository
+import com.example.ui.util.PakistanCities
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class UserSession(
     val isLoggedIn: Boolean = false,
@@ -25,6 +31,20 @@ data class UserSession(
     val userBloodGroup: String = "O+",
     val userCity: String = "Lahore",
     val currentDonorId: Int = 1
+)
+
+data class AppNotification(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String,
+    val body: String,
+    val time: String = "Just Now",
+    val isSmsBackup: Boolean = false,
+    val requestId: Int? = null,
+    val city: String = "Lahore",
+    val distanceKm: Double? = null,
+    val donorName: String? = null,
+    val donorPhone: String? = null,
+    val hospitalName: String? = null
 )
 
 class BloodCareViewModel(application: Application) : AndroidViewModel(application) {
@@ -40,16 +60,19 @@ class BloodCareViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _userSession = MutableStateFlow(
         UserSession(
-            isLoggedIn = true,
+            isLoggedIn = false,
             role = "Donor",
-            phoneNumber = "+92 300 1234567",
-            userName = "Muhammad Ali Khan",
+            phoneNumber = "",
+            userName = "",
             userBloodGroup = "O+",
             userCity = "Lahore",
-            currentDonorId = 1
+            currentDonorId = 0
         )
     )
     val userSession: StateFlow<UserSession> = _userSession.asStateFlow()
+
+    private val _notifications = MutableStateFlow<List<AppNotification>>(emptyList())
+    val notifications: StateFlow<List<AppNotification>> = _notifications.asStateFlow()
 
     val allDonors: StateFlow<List<DonorEntity>> = repository.allDonors.stateIn(
         scope = viewModelScope,
@@ -97,6 +120,55 @@ class BloodCareViewModel(application: Application) : AndroidViewModel(applicatio
     val selectedBloodGroupFilter = MutableStateFlow("All")
     val selectedCityFilter = MutableStateFlow("All")
 
+    private var requestListener: ListenerRegistration? = null
+    private var donorListener: ListenerRegistration? = null
+
+    init {
+        // Real-time Cloud Firestore sync for Blood Requests
+        requestListener = FirestoreService.listenToBloodRequests { firestoreRequests ->
+            viewModelScope.launch {
+                firestoreRequests.forEach { req ->
+                    repository.addBloodRequest(req)
+
+                    // Real-time donor location matching notification
+                    val currentUser = _userSession.value
+                    if (currentUser.isLoggedIn && repository.isCompatible(currentUser.userBloodGroup, req.bloodGroup)) {
+                        val dist = PakistanCities.calculateDistanceKm(currentUser.userCity, req.city)
+                        val isExistingAlert = _notifications.value.any { it.requestId == req.id }
+                        if (!isExistingAlert && req.status == "Pending") {
+                            val alert = AppNotification(
+                                title = "🔥 REALTIME CLOUD ALERT (${dist} km away)",
+                                body = "Urgent ${req.bloodGroup} request for ${req.patientName} at ${req.hospitalName}, ${req.city}. Tap to respond!",
+                                time = "Just Now",
+                                isSmsBackup = req.emergencyLevel == "Critical",
+                                requestId = req.id,
+                                city = req.city,
+                                distanceKm = dist,
+                                hospitalName = req.hospitalName
+                            )
+                            _notifications.value = listOf(alert) + _notifications.value
+                        }
+                    }
+                }
+            }
+        }
+
+        // Real-time Cloud Firestore sync for Donors
+        donorListener = FirestoreService.listenToDonors { firestoreDonors ->
+            viewModelScope.launch {
+                firestoreDonors.forEach { donor ->
+                    repository.addDonor(donor)
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        requestListener?.remove()
+        donorListener?.remove()
+    }
+
     // Methods
     fun loginUser(phone: String, name: String, bloodGroup: String, city: String, role: String) {
         _userSession.value = UserSession(
@@ -108,6 +180,14 @@ class BloodCareViewModel(application: Application) : AndroidViewModel(applicatio
             userCity = city,
             currentDonorId = 1
         )
+        // Sync profile to Cloud Firestore
+        FirestoreService.saveUserProfile(
+            phone = phone,
+            name = name,
+            role = role,
+            bloodGroup = bloodGroup,
+            city = city
+        )
     }
 
     fun selectRole(role: String) {
@@ -117,6 +197,17 @@ class BloodCareViewModel(application: Application) : AndroidViewModel(applicatio
     fun toggleDonorAvailability(donorId: Int, currentStatus: Boolean) {
         viewModelScope.launch {
             repository.updateDonorAvailability(donorId, !currentStatus)
+            val session = _userSession.value
+            if (session.phoneNumber.isNotBlank()) {
+                FirestoreService.saveUserProfile(
+                    phone = session.phoneNumber,
+                    name = session.userName,
+                    role = session.role,
+                    bloodGroup = session.userBloodGroup,
+                    city = session.userCity,
+                    isAvailable = !currentStatus
+                )
+            }
         }
     }
 
@@ -133,6 +224,7 @@ class BloodCareViewModel(application: Application) : AndroidViewModel(applicatio
         isThalassemia: Boolean = false
     ) {
         viewModelScope.launch {
+            val coords = PakistanCities.getCityCoords(city)
             val request = BloodRequestEntity(
                 patientName = patientName,
                 bloodGroup = bloodGroup,
@@ -146,9 +238,101 @@ class BloodCareViewModel(application: Application) : AndroidViewModel(applicatio
                 notes = notes,
                 status = "Pending",
                 isThalassemia = isThalassemia,
-                requesterRole = _userSession.value.role
+                requesterRole = _userSession.value.role,
+                latitude = coords.first,
+                longitude = coords.second
             )
-            repository.addBloodRequest(request)
+            val newId = repository.addBloodRequest(request).toInt()
+            val createdWithId = request.copy(id = newId)
+
+            // Save to Cloud Firestore for real-time sync across devices
+            FirestoreService.saveBloodRequest(createdWithId)
+
+            val currentDonors = allDonors.value
+            val nearbyMatchingDonors = currentDonors.filter { donor ->
+                donor.isAvailable && repository.isCompatible(donor.bloodGroup, bloodGroup)
+            }
+
+            val newAlerts = nearbyMatchingDonors.map { donor ->
+                val dist = PakistanCities.calculateDistanceKm(donor.city, city)
+                AppNotification(
+                    title = "🚨 NEARBY EMERGENCY ALERT (${dist} km away)",
+                    body = "Need $units unit(s) of $bloodGroup for $patientName at $hospitalName, $city ($locationName). Tap to respond & donate!",
+                    time = "Just Now",
+                    isSmsBackup = emergencyLevel == "Critical",
+                    requestId = newId,
+                    city = city,
+                    distanceKm = dist,
+                    hospitalName = hospitalName
+                )
+            }
+
+            if (newAlerts.isNotEmpty()) {
+                _notifications.value = newAlerts + _notifications.value
+            } else {
+                _notifications.value = listOf(
+                    AppNotification(
+                        title = "🚨 $city EMERGENCY BROADCAST",
+                        body = "New emergency request for $bloodGroup at $hospitalName, $city. Nearby donors alerted!",
+                        time = "Just Now",
+                        isSmsBackup = true,
+                        requestId = newId,
+                        city = city
+                    )
+                ) + _notifications.value
+            }
+        }
+    }
+
+    fun acceptBloodRequest(
+        requestId: Int,
+        donorName: String,
+        donorPhone: String,
+        donorCity: String,
+        donorLocationName: String
+    ) {
+        viewModelScope.launch {
+            val current = repository.getRequestById(requestId) ?: return@launch
+            val dist = PakistanCities.calculateDistanceKm(donorCity, current.city)
+            val nowTime = "Today, " + SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+
+            val updated = current.copy(
+                status = "Accepted",
+                acceptedDonorId = _userSession.value.currentDonorId,
+                acceptedDonorName = donorName,
+                acceptedDonorPhone = donorPhone,
+                acceptedDonorLocation = "$donorLocationName, $donorCity",
+                acceptedDonorDistanceKm = dist,
+                acceptedAt = nowTime
+            )
+            repository.updateRequest(updated)
+
+            // Update in Cloud Firestore
+            FirestoreService.updateRequestStatus(
+                docId = if (requestId != 0) requestId.toString() else "req_${current.createdAt}",
+                status = "Accepted",
+                acceptedDonorName = donorName,
+                acceptedDonorPhone = donorPhone,
+                acceptedDonorLocation = "$donorLocationName, $donorCity",
+                acceptedDonorDistanceKm = dist,
+                acceptedAt = nowTime
+            )
+
+            val mutualAlerts = listOf(
+                AppNotification(
+                    title = "✅ EMERGENCY REQUEST ACCEPTED!",
+                    body = "Hero donor $donorName ($donorPhone) accepted emergency request for ${current.patientName} at ${current.hospitalName}! Distance: $dist km. Contact & Location details shared.",
+                    time = "Just Now",
+                    isSmsBackup = true,
+                    requestId = requestId,
+                    city = current.city,
+                    distanceKm = dist,
+                    donorName = donorName,
+                    donorPhone = donorPhone,
+                    hospitalName = current.hospitalName
+                )
+            )
+            _notifications.value = mutualAlerts + _notifications.value
         }
     }
 
@@ -162,6 +346,7 @@ class BloodCareViewModel(application: Application) : AndroidViewModel(applicatio
         locationName: String
     ) {
         viewModelScope.launch {
+            val coords = PakistanCities.getCityCoords(city)
             val donor = DonorEntity(
                 fullName = name,
                 phone = phone,
@@ -170,21 +355,38 @@ class BloodCareViewModel(application: Application) : AndroidViewModel(applicatio
                 gender = gender,
                 city = city,
                 locationName = locationName,
-                latitude = 31.5204,
-                longitude = 74.3587,
+                latitude = coords.first,
+                longitude = coords.second,
                 isAvailable = true,
                 lastDonationDate = "Never",
                 totalDonations = 0,
                 isVerified = true,
                 badges = "New Hero,Life Saver"
             )
-            repository.addDonor(donor)
+            val donorId = repository.addDonor(donor).toInt()
+            val donorWithId = donor.copy(id = donorId)
+
+            // Save to Cloud Firestore
+            FirestoreService.saveDonorEntity(donorWithId)
+            FirestoreService.saveUserProfile(
+                phone = phone,
+                name = name,
+                role = "Donor",
+                bloodGroup = bloodGroup,
+                city = city,
+                locationName = locationName,
+                isAvailable = true
+            )
         }
     }
 
     fun updateRequestStatus(requestId: Int, newStatus: String) {
         viewModelScope.launch {
             repository.updateRequestStatus(requestId, newStatus)
+            FirestoreService.updateRequestStatus(
+                docId = requestId.toString(),
+                status = newStatus
+            )
         }
     }
 

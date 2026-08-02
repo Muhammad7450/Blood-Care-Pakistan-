@@ -80,7 +80,7 @@ fun NearbyDonorsMapScreen(
     var selectedGroup by remember { mutableStateOf("All") }
     var selectedDonor by remember { mutableStateOf<DonorEntity?>(null) }
 
-    val cities = listOf("Lahore", "Karachi", "Islamabad", "Peshawar", "Quetta", "Multan", "Faisalabad")
+    val cities = listOf("All") + com.example.ui.util.PakistanCities.ALL_CITIES
     val groups = listOf("All", "O+", "O-", "A+", "A-", "B+", "B-", "AB+")
 
     val filteredDonors = allDonors.filter { donor ->
