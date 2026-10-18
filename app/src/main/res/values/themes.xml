@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <style name="Theme.BloodCare" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#C62828</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

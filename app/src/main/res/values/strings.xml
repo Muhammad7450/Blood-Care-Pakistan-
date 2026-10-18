@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">BloodCare Pakistan</string>
+    <string name="default_notification_channel_id">blood_requests_channel</string>
+    <string name="default_notification_channel_name">Blood Donation Emergency Alerts</string>
 </resources>

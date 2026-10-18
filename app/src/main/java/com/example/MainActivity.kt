@@ -1,241 +1,270 @@
 package com.example
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
-import com.example.ui.components.BloodCareBottomNav
-import com.example.ui.components.BloodCareTopBar
-import com.example.ui.navigation.Screen
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import com.example.data.model.UserRole
+import com.example.data.repository.AuthRepository
+import com.example.data.repository.BloodCareRepository
+import com.example.theme.BloodCareTheme
+import com.example.theme.CrimsonRed
 import com.example.ui.screens.AdminDashboardScreen
-import com.example.ui.screens.AiChatbotScreen
-import com.example.ui.screens.BloodCampsScreen
+import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.CreateBloodRequestScreen
-import com.example.ui.screens.DonationHistoryScreen
 import com.example.ui.screens.DonorDashboardScreen
-import com.example.ui.screens.EmergencyRequestDetailsScreen
-import com.example.ui.screens.LoginRegisterScreen
-import com.example.ui.screens.NearbyDonorsMapScreen
-import com.example.ui.screens.NotificationsScreen
+import com.example.ui.screens.NotificationListScreen
 import com.example.ui.screens.PatientDashboardScreen
 import com.example.ui.screens.ProfileScreen
-import com.example.ui.screens.RoleSelectionScreen
-import com.example.ui.screens.SplashScreen
-import com.example.ui.screens.ThalassemiaSupportScreen
-import com.example.ui.theme.BloodCareTheme
+import com.example.ui.screens.RequestDetailsScreen
+import com.example.ui.viewmodel.AuthViewModel
 import com.example.ui.viewmodel.BloodCareViewModel
 
+enum class Screen {
+    DASHBOARD,
+    CREATE_REQUEST,
+    REQUEST_DETAILS,
+    NOTIFICATIONS,
+    ADMIN,
+    PROFILE
+}
+
 class MainActivity : ComponentActivity() {
+
+    private val authRepository by lazy { AuthRepository(applicationContext) }
+    private val bloodCareRepository by lazy { BloodCareRepository(applicationContext) }
+
+    private val authViewModel: AuthViewModel by viewModels {
+        AuthViewModel.Factory(authRepository)
+    }
+
+    private val bloodCareViewModel: BloodCareViewModel by viewModels {
+        BloodCareViewModel.Factory(bloodCareRepository)
+    }
+
+    private val notificationRequestId = mutableStateOf<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("EXTRA_REQUEST_ID")?.let { reqId ->
+            if (reqId.isNotBlank()) {
+                notificationRequestId.value = reqId
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // 1. Ensure High-Priority Notification Channels exist immediately
+        com.example.util.NotificationHelper.createNotificationChannel(applicationContext)
+
+        // 2. Schedule persistent background sync job & trigger immediate check
+        com.example.data.service.BloodCareBackgroundSyncService.scheduleJob(applicationContext)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            com.example.data.service.BloodCareBackgroundSyncService.triggerImmediateSync(applicationContext)
+        }
+
+        val initialRequestId = intent?.getStringExtra("EXTRA_REQUEST_ID")
+        if (!initialRequestId.isNullOrBlank()) {
+            notificationRequestId.value = initialRequestId
+        }
+
         setContent {
             BloodCareTheme {
-                BloodCareApp()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    AppRoot(
+                        authViewModel = authViewModel,
+                        bloodCareViewModel = bloodCareViewModel,
+                        initialRequestId = notificationRequestId.value
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun BloodCareApp() {
-    val navController = rememberNavController()
-    val viewModel: BloodCareViewModel = viewModel()
-    val userSession by viewModel.userSession.collectAsState()
+fun AppRoot(
+    authViewModel: AuthViewModel,
+    bloodCareViewModel: BloodCareViewModel,
+    initialRequestId: String? = null
+) {
+    val currentUser by authViewModel.currentUser.collectAsState()
+    val userProfile by authViewModel.userProfile.collectAsState()
+    val isProfileLoading by authViewModel.isProfileLoading.collectAsState()
 
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Splash.route
+    var currentScreen by remember { mutableStateOf(Screen.DASHBOARD) }
+    var activeRequestId by remember { mutableStateOf(initialRequestId ?: "") }
 
-    val hideTopBottomNav = currentRoute == Screen.Splash.route ||
-            currentRoute == Screen.LoginRegister.route ||
-            currentRoute == Screen.RoleSelection.route
+    // Request notification permission on Android 13+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            if (!hideTopBottomNav) {
-                BloodCareTopBar(
-                    title = "BloodCare Pakistan",
-                    currentRole = userSession.role,
-                    onRoleClick = { navController.navigate(Screen.RoleSelection.route) },
-                    onNotificationClick = { navController.navigate(Screen.Notifications.route) },
-                    onAiClick = { navController.navigate(Screen.AiChatbot.route) }
-                )
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    LaunchedEffect(initialRequestId) {
+        if (!initialRequestId.isNullOrBlank()) {
+            activeRequestId = initialRequestId
+            currentScreen = Screen.REQUEST_DETAILS
+        }
+    }
+
+    // 1. Auth Gating: If not signed in or profile is being configured, show AuthScreen
+    if (currentUser == null || userProfile == null) {
+        AuthScreen(
+            authViewModel = authViewModel,
+            onAuthComplete = {
+                currentScreen = Screen.DASHBOARD
             }
-        },
-        bottomBar = {
-            if (!hideTopBottomNav) {
-                BloodCareBottomNav(
-                    currentRoute = currentRoute,
-                    currentRole = userSession.role,
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
+        )
+        return
+    }
+
+    if (isProfileLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = CrimsonRed)
+        }
+        return
+    }
+
+    val profile = userProfile!!
+
+    // BackHandler for custom screen stack navigation
+    if (currentScreen != Screen.DASHBOARD) {
+        BackHandler {
+            currentScreen = Screen.DASHBOARD
+        }
+    }
+
+    // Navigation routing
+    when (currentScreen) {
+        Screen.DASHBOARD -> {
+            // AUTOMATIC ROLE DETERMINATION - NO MODE SWITCHING BUTTONS!
+            val userRole = UserRole.fromString(profile.role)
+            when (userRole) {
+                UserRole.PATIENT -> {
+                    PatientDashboardScreen(
+                        userProfile = profile,
+                        bloodCareViewModel = bloodCareViewModel,
+                        onRequestClick = { req ->
+                            activeRequestId = req.id
+                            bloodCareViewModel.selectRequest(req)
+                            currentScreen = Screen.REQUEST_DETAILS
+                        },
+                        onCreateRequestClick = { currentScreen = Screen.CREATE_REQUEST },
+                        onNotificationsClick = { currentScreen = Screen.NOTIFICATIONS },
+                        onProfileClick = { currentScreen = Screen.PROFILE },
+                        onAdminClick = { currentScreen = Screen.ADMIN }
+                    )
+                }
+                else -> {
+                    // DONOR, BOTH, or ADMIN primary feed
+                    DonorDashboardScreen(
+                        userProfile = profile,
+                        authViewModel = authViewModel,
+                        bloodCareViewModel = bloodCareViewModel,
+                        onRequestClick = { req ->
+                            activeRequestId = req.id
+                            bloodCareViewModel.selectRequest(req)
+                            currentScreen = Screen.REQUEST_DETAILS
+                        },
+                        onCreateRequestClick = { currentScreen = Screen.CREATE_REQUEST },
+                        onNotificationsClick = { currentScreen = Screen.NOTIFICATIONS },
+                        onProfileClick = { currentScreen = Screen.PROFILE },
+                        onAdminClick = { currentScreen = Screen.ADMIN }
+                    )
+                }
             }
         }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Splash.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Screen.Splash.route) {
-                SplashScreen(
-                    onTimeout = {
-                        navController.navigate(Screen.LoginRegister.route) {
-                            popUpTo(Screen.Splash.route) { inclusive = true }
-                        }
-                    }
-                )
-            }
-
-            composable(Screen.LoginRegister.route) {
-                LoginRegisterScreen(
-                    onLoginSuccess = { phone, name, bloodGroup, city, role ->
-                        viewModel.loginUser(phone, name, bloodGroup, city, role)
-                        val targetRoute = when(role) {
-                            "Patient" -> Screen.PatientDashboard.route
-                            "Hospital" -> Screen.PatientDashboard.route
-                            "Admin" -> Screen.AdminDashboard.route
-                            else -> Screen.DonorDashboard.route
-                        }
-                        navController.navigate(targetRoute) {
-                            popUpTo(Screen.LoginRegister.route) { inclusive = true }
-                        }
-                    }
-                )
-            }
-
-            composable(Screen.RoleSelection.route) {
-                RoleSelectionScreen(
-                    currentRole = userSession.role,
-                    onRoleSelected = { selectedRole ->
-                        viewModel.selectRole(selectedRole)
-                        val targetRoute = when(selectedRole) {
-                            "Patient" -> Screen.PatientDashboard.route
-                            "Hospital" -> Screen.PatientDashboard.route
-                            "Admin" -> Screen.AdminDashboard.route
-                            else -> Screen.DonorDashboard.route
-                        }
-                        navController.navigate(targetRoute) {
-                            popUpTo(Screen.RoleSelection.route) { inclusive = true }
-                        }
-                    }
-                )
-            }
-
-            composable(Screen.DonorDashboard.route) {
-                DonorDashboardScreen(
-                    viewModel = viewModel,
-                    onCreateRequestClick = { navController.navigate(Screen.CreateBloodRequest.route) },
-                    onRequestDetailsClick = { requestId ->
-                        navController.navigate(Screen.EmergencyRequestDetails.createRoute(requestId))
-                    }
-                )
-            }
-
-            composable(Screen.PatientDashboard.route) {
-                PatientDashboardScreen(
-                    viewModel = viewModel,
-                    onCreateRequestClick = { navController.navigate(Screen.CreateBloodRequest.route) },
-                    onFindDonorsMapClick = { navController.navigate(Screen.NearbyDonorsMap.route) }
-                )
-            }
-
-            composable(Screen.CreateBloodRequest.route) {
-                CreateBloodRequestScreen(
-                    viewModel = viewModel,
-                    onRequestCreated = {
-                        val target = if (userSession.role == "Donor") Screen.DonorDashboard.route else Screen.PatientDashboard.route
-                        navController.navigate(target) {
-                            popUpTo(Screen.CreateBloodRequest.route) { inclusive = true }
-                        }
-                    }
-                )
-            }
-
-            composable(Screen.NearbyDonorsMap.route) {
-                NearbyDonorsMapScreen(viewModel = viewModel)
-            }
-
-            composable(
-                route = Screen.EmergencyRequestDetails.route,
-                arguments = listOf(navArgument("requestId") { type = NavType.IntType })
-            ) { backStackEntry ->
-                val requestId = backStackEntry.arguments?.getInt("requestId") ?: 1
-                EmergencyRequestDetailsScreen(
-                    requestId = requestId,
-                    viewModel = viewModel,
-                    onBackClick = { navController.popBackStack() }
-                )
-            }
-
-            composable(Screen.DonationHistory.route) {
-                DonationHistoryScreen(viewModel = viewModel)
-            }
-
-            composable(Screen.Profile.route) {
-                ProfileScreen(
-                    viewModel = viewModel,
-                    onRoleSelectClick = { navController.navigate(Screen.RoleSelection.route) },
-                    onLogoutClick = {
-                        navController.navigate(Screen.LoginRegister.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    }
-                )
-            }
-
-            composable(Screen.Notifications.route) {
-                NotificationsScreen(
-                    viewModel = viewModel,
-                    onRequestClick = { reqId ->
-                        navController.navigate(Screen.EmergencyRequestDetails.createRoute(reqId))
-                    }
-                )
-            }
-
-            composable(Screen.AdminDashboard.route) {
-                AdminDashboardScreen(viewModel = viewModel)
-            }
-
-            composable(Screen.AiChatbot.route) {
-                AiChatbotScreen()
-            }
-
-            composable(Screen.ThalassemiaSupport.route) {
-                ThalassemiaSupportScreen(
-                    viewModel = viewModel,
-                    onRequestDetailsClick = { reqId ->
-                        navController.navigate(Screen.EmergencyRequestDetails.createRoute(reqId))
-                    }
-                )
-            }
-
-            composable(Screen.BloodCamps.route) {
-                BloodCampsScreen(viewModel = viewModel)
-            }
+        Screen.CREATE_REQUEST -> {
+            CreateBloodRequestScreen(
+                userProfile = profile,
+                bloodCareViewModel = bloodCareViewModel,
+                onBackClick = { currentScreen = Screen.DASHBOARD },
+                onRequestCreated = { createdId ->
+                    activeRequestId = createdId
+                    currentScreen = Screen.REQUEST_DETAILS
+                }
+            )
+        }
+        Screen.REQUEST_DETAILS -> {
+            RequestDetailsScreen(
+                requestId = activeRequestId,
+                currentUserProfile = profile,
+                bloodCareViewModel = bloodCareViewModel,
+                onBackClick = { currentScreen = Screen.DASHBOARD }
+            )
+        }
+        Screen.NOTIFICATIONS -> {
+            NotificationListScreen(
+                bloodCareViewModel = bloodCareViewModel,
+                onBackClick = { currentScreen = Screen.DASHBOARD },
+                onNotificationClick = { reqId ->
+                    activeRequestId = reqId
+                    currentScreen = Screen.REQUEST_DETAILS
+                }
+            )
+        }
+        Screen.ADMIN -> {
+            AdminDashboardScreen(
+                bloodCareViewModel = bloodCareViewModel,
+                onBackClick = { currentScreen = Screen.DASHBOARD },
+                onRequestClick = { req ->
+                    activeRequestId = req.id
+                    bloodCareViewModel.selectRequest(req)
+                    currentScreen = Screen.REQUEST_DETAILS
+                }
+            )
+        }
+        Screen.PROFILE -> {
+            ProfileScreen(
+                userProfile = profile,
+                authViewModel = authViewModel,
+                onBackClick = { currentScreen = Screen.DASHBOARD },
+                onSignedOut = {
+                    currentScreen = Screen.DASHBOARD
+                }
+            )
         }
     }
 }

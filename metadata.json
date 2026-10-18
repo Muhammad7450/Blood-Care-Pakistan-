@@ -1,6 +1,8 @@
 {
   "name": "BloodCare Pakistan",
-  "description": "Blood Donation & Emergency Network connecting donors, patients, hospitals, and blood banks across Pakistan.",
+  "description": "Production-ready real-time blood donation and emergency request matching system for Pakistan.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

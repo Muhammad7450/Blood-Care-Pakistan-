@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role, contact info, blood group, and normalized city for Pakistan blood donation network.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth user ID" },
+        "fullName": { "type": "string", "description": "Full name of the user" },
+        "role": { "type": "string", "enum": ["DONOR", "PATIENT", "ADMIN", "BOTH"], "description": "Account role determining primary view" },
+        "supportedCapabilities": { "type": "array", "description": "List of granted capabilities e.g. CAN_DONATE, CAN_REQUEST" },
+        "bloodGroup": { "type": "string", "enum": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "UNKNOWN"], "description": "Blood group of donor or patient" },
+        "city": { "type": "string", "description": "City in Pakistan e.g. Nawabshah, Karachi, Lahore" },
+        "normalizedCity": { "type": "string", "description": "Normalized lowercase trimmed city for exact matching" },
+        "phoneNumber": { "type": "string", "description": "Contact phone number" },
+        "isDonor": { "type": "boolean", "description": "Whether user acts as a blood donor" },
+        "isAvailable": { "type": "boolean", "description": "Whether donor is currently available to donate" },
+        "isProfileVerified": { "type": "boolean", "description": "Whether donor profile is verified" },
+        "fcmToken": { "type": "string", "description": "FCM device push notification token" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp via serverTimestamp" }
+      },
+      "required": ["uid", "fullName", "role", "city", "normalizedCity", "createdAt", "updatedAt"]
+    },
+    "BloodRequest": {
+      "title": "BloodRequest",
+      "description": "Emergency or standard blood donation request created by a patient in Pakistan.",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string", "description": "User ID of the patient who created the request" },
+        "patientName": { "type": "string", "description": "Name of the patient or requester" },
+        "patientPhone": { "type": "string", "description": "Contact phone number for hospital coordination" },
+        "bloodGroup": { "type": "string", "description": "Required blood group e.g. A+, O-" },
+        "city": { "type": "string", "description": "City where blood is needed e.g. Nawabshah" },
+        "normalizedCity": { "type": "string", "description": "Normalized lowercase trimmed city for matching" },
+        "hospitalName": { "type": "string", "description": "Hospital or blood bank name" },
+        "hospitalAddress": { "type": "string", "description": "Physical address of hospital" },
+        "unitsRequired": { "type": "integer", "description": "Number of blood bags/units required" },
+        "urgency": { "type": "string", "enum": ["NORMAL", "URGENT", "CRITICAL"], "description": "Urgency level" },
+        "requiredDate": { "type": "string", "description": "Date or time blood is needed by" },
+        "additionalNotes": { "type": "string", "description": "Medical context or instructions" },
+        "status": { "type": "string", "enum": ["OPEN", "DONOR_RESPONDED", "FULFILLED", "CANCELLED"], "description": "Lifecycle status of request" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp when request created" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp when last updated" },
+        "fulfilledAt": { "type": "string", "format": "date-time", "description": "Server timestamp when fulfilled" },
+        "cancelledAt": { "type": "string", "format": "date-time", "description": "Server timestamp when cancelled" },
+        "deletedAt": { "type": "string", "format": "date-time", "description": "Server timestamp for soft-deletion" }
+      },
+      "required": ["patientId", "patientName", "bloodGroup", "city", "normalizedCity", "hospitalName", "unitsRequired", "urgency", "status", "createdAt", "updatedAt"]
+    },
+    "DonorResponse": {
+      "title": "DonorResponse",
+      "description": "Response submitted by an eligible donor willing to donate for an open blood request.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "description": "ID of the blood request" },
+        "donorId": { "type": "string", "description": "User ID of responding donor" },
+        "patientId": { "type": "string", "description": "User ID of patient who posted request" },
+        "donorName": { "type": "string", "description": "Name of responding donor" },
+        "donorPhone": { "type": "string", "description": "Contact phone of responding donor" },
+        "donorBloodGroup": { "type": "string", "description": "Blood group of donor" },
+        "responseStatus": { "type": "string", "enum": ["ACCEPTED", "CONFIRMED", "COMPLETED", "DECLINED"], "description": "Status of donor offer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of response" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of response update" }
+      },
+      "required": ["requestId", "donorId", "patientId", "donorName", "responseStatus", "createdAt", "updatedAt"]
+    },
+    "NotificationRecord": {
+      "title": "NotificationRecord",
+      "description": "Direct notification record stored for a recipient user.",
+      "type": "object",
+      "properties": {
+        "recipientUserId": { "type": "string", "description": "User ID of recipient" },
+        "requestId": { "type": "string", "description": "Related blood request ID" },
+        "title": { "type": "string", "description": "Notification headline" },
+        "body": { "type": "string", "description": "Notification details" },
+        "type": { "type": "string", "description": "Type: NEW_REQUEST, DONOR_RESPONDED, STATUS_UPDATE" },
+        "isRead": { "type": "boolean", "description": "Whether recipient has read notification" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of notification creation" }
+      },
+      "required": ["recipientUserId", "title", "body", "type", "isRead", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile collection partitioned by Firebase Auth UID."
+    },
+    "/bloodRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/BloodRequest" },
+      "description": "Shared blood donation requests searchable by city and open status."
+    },
+    "/donorResponses/{responseId}": {
+      "schema": { "$ref": "#/entities/DonorResponse" },
+      "description": "Responses from donors for specific blood requests."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationRecord" },
+      "description": "Notification records delivered to specific users."
+    }
+  }
+}

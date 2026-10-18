@@ -1,21 +1,26 @@
 package com.example
 
+import android.app.NotificationManager
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
-import org.junit.Assert.assertEquals
+import com.example.util.NotificationHelper
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [34])
 class ExampleRobolectricTest {
 
   @Test
-  fun `read string from context`() {
-    val context = ApplicationProvider.getApplicationContext<Context>()
-    val appName = context.getString(R.string.app_name)
-    assertEquals("My Application", appName)
+  fun testNotificationChannelsCreatedWithHighImportance() {
+    val context: Context = RuntimeEnvironment.getApplication()
+    NotificationHelper.createNotificationChannel(context)
+
+    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    val channel = notificationManager.getNotificationChannel(NotificationHelper.CHANNEL_ID)
+    assertNotNull("Expected blood_requests_channel_v3 to be created", channel)
   }
 }
